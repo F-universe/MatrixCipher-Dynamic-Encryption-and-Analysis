@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>64x64 Matrix and Image Analysis</title>
+  <style>
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(64, 10px); /* 64 columns */
+      grid-template-rows: repeat(64, 10px);    /* 64 rows */
+      gap: 1px; /* Space between cells */
+      margin-bottom: 20px;
+    }
+
+    .cell {
+      width: 10px;
+      height: 10px;
+      background-color: #ffffff; /* White background */
+      border: 1px solid #aaa;
+      text-align: center;
+      line-height: 10px;
+      font-size: 8px;
+    }
+
+    .cell img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .cell:hover {
+      background-color: #f0f0f0;
+    }
+
+    .form-container {
+      margin: 20px;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      width: 300px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .result {
+      font-size: 12px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>64x64 Matrix and Image Analysis</h1>
+
+  <div class="form-container">
+    <form id="searchForm">
+      <input type="text" name="parola" placeholder="Enter a word" required>
+      <button type="submit">Search on Wikipedia</button>
+    </form>
+  </div>
+
+  <!-- First 64x64 Matrix -->
+  <h2>First Matrix</h2>
+  <div class="matrix" id="matrix"></div>
+
+  <!-- Second Matrix -->
+  <h2>Modified Second Matrix</h2>
+  <div class="matrix" id="modifiedMatrix"></div>
+
+  <!-- Container for Analysis Results -->
+  <h2>Analysis Matrix</h2>
+  <div id="analysisContainer"></div>
+  
+  <script>
+    document.getElementById('searchForm').onsubmit = async function(event) {
+        event.preventDefault();
+    
+        const formData = new FormData(event.target);
+        const response = await fetch('/search', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+    
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+    
+        const matrix = document.getElementById('matrix');
+        const modifiedMatrix = document.getElementById('modifiedMatrix');
+        const analysisContainer = document.getElementById('analysisContainer');
+    
+        matrix.innerHTML = ''; 
+        modifiedMatrix.innerHTML = ''; 
+        analysisContainer.innerHTML = ''; 
+    
+        const totalCells = 64 * 64;
+        const letters = [];
+        for (let i = 0; i < totalCells; i++) {
+            letters.push(data.letters[i % data.letters.length]); 
+        }
+    
+        const imagePixelMap = {
+            "1.png": 20628,
+            "2.png": 17789,
+            "3.png": 19848,
+            "4.png": 23574,
+            "5.png": 26655,
+            "6.png": 19719
+        };
+    
+        const consonants = 'bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ';
+        const vowels = 'aeiouAEIOU';
+        const oddNumbers = '13579';
+        let modifiedLetters = [];
+        for (let i = 0; i < letters.length; i++) {
+            const current = letters[i];
+            const next = letters[i + 1];
+    
+            if (consonants.includes(current) && consonants.includes(next)) {
+                modifiedLetters.push('1.png');
+                i++;
+            } else if (vowels.includes(current) && vowels.includes(next)) {
+                modifiedLetters.push('2.png');
+                i++;
+            } else if (vowels.includes(current) && consonants.includes(next)) {
+                modifiedLetters.push('3.png');
+                i++;
+            } else if (consonants.includes(current) && vowels.includes(next)) {
+                modifiedLetters.push('4.png');
+                i++;
+            } else if (oddNumbers.includes(current)) {
+                modifiedLetters.push('5.png');
+            } else {
+                modifiedLetters.push('6.png');
+            }
+        }
+    
+        // Populate the First Matrix
+        letters.forEach(letter => {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            cell.textContent = letter;
+            matrix.appendChild(cell);
+        });
+    
+        // Populate the Second Matrix
+        modifiedLetters.forEach(img => {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            cell.innerHTML = `<img src="/static/${img}" alt="img">`;
+            modifiedMatrix.appendChild(cell);
+        });
+    
+        function analyzeRowSum(rowIndex) {
+            const rowImages = modifiedLetters.slice(rowIndex * 64, (rowIndex + 1) * 64);
+            return rowImages.reduce((sum, img) => sum + (imagePixelMap[img] || 0), 0);
+        }
+    
+        // Calculate pixel sum for each row
+        let totalRows = Math.floor(modifiedLetters.length / 64);
+        const rowSums = [];
+        for (let i = 0; i < totalRows; i++) {
+            rowSums.push(analyzeRowSum(i).toString().split(''));
+        }
+    
+        // Display row sums matrix on the page
+        let matrixHTML = '';
+        rowSums.forEach(sum => {
+            matrixHTML += '<div class="matrix-row" style="display: grid; grid-template-columns: repeat(10, 20px); gap: 5px;">';
+            sum.forEach(digit => {
+                matrixHTML += `<div class="cell">${digit}</div>`;
+            });
+            matrixHTML += '</div>';
+        });
+    
+        analysisContainer.innerHTML += `<h2>Sum Matrix (digits per cell):</h2>${matrixHTML}`;
+    
+        // Save row sums data into data.txt
+        const saveResponse = await fetch('/save_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ matrixData: rowSums })
+        });
+    
+        const saveResult = await saveResponse.json();
+        if (saveResult.error) {
+            alert('Error saving data: ' + saveResult.error);
+        } else {
+            alert('Data successfully saved in data.txt');
+        }
+    };
+  </script>
+</body>
+</html>
